@@ -7,16 +7,17 @@
 int main(int argc, char *argv[])
 {
     Game waddles = {0};
+    Piece_Render pieces = {0};
 
-    if (!initialize_graphics(&waddles))
+    if (!initialize_graphics(&waddles, &pieces))
     {
         fprintf(stderr, "Something Went Wrong in initialize_graphics()\n");
         exit(EXIT_FAILURE);
     }
 
-    render_loop(&waddles);
+    render_loop(&waddles, &pieces);
 
-    if (!housekeeping(&waddles))
+    if (!housekeeping(&waddles, &pieces))
     {
         fprintf(stderr, "Something Went Wrong in housekeeping()\n");
         exit(EXIT_FAILURE);
