@@ -1,6 +1,5 @@
 #include "render.h"
 
-#include <stdint.h>
 #include <stdio.h>
 
 #define SDL_INIT_FLAGS SDL_INIT_VIDEO
@@ -15,6 +14,8 @@
 #define RGBA_G(rgba) ((uint8_t)(((uint32_t)(rgba) >> 16) & 0xFFU))
 #define RGBA_B(rgba) ((uint8_t)(((uint32_t)(rgba) >> 8) & 0xFFU))
 #define RGBA_A(rgba) ((uint8_t)(((uint32_t)(rgba) >> 0) & 0xFFU))
+
+static PieceGraphic pg = (PieceGraphic){0};
 
 #define BOARD_SIZE 8
 #define SQUARE_SIZE 100
@@ -41,6 +42,55 @@ static void draw_chess_board(SDL_Renderer *renderer)
             }
         }
     }
+}
+
+/* return the path for the sprit "name" form chess-pieces directory */
+static char *get_sprite_path(const char *name)
+{
+    const char *exe_path = SDL_GetBasePath();
+    if (exe_path == NULL)
+    {
+        fprintf(stderr, "faild to get executable path: %s\n", SDL_GetError());
+        return NULL;
+    }
+
+    char *piece_path = NULL;
+    SDL_asprintf(&piece_path, "%s../chess-pieces/%s.png", exe_path, name);
+    if (piece_path == NULL)
+    {
+        fprintf(stderr, "Faild to load sprite. Could NOT find %s.png", name);
+        return NULL;
+    }
+
+    return piece_path;
+}
+
+static bool load_pieces(PieceGraphic *pieces, SDL_Renderer *renderer)
+{
+    const char *piece_names[PIECE_TYPE_COUNT] = {"w_king", "w_queen", "w_bishop", "w_knight", "w_rook", "w_pawn",
+                                                 "b_king", "b_queen", "b_bishop", "b_knight", "b_rook", "b_pawn"};
+
+    for (size_t i = 0; i < PIECE_TYPE_COUNT; ++i)
+    {
+        char *path = get_sprite_path(piece_names[i]);
+        if (!path)
+        {
+            fprintf(stderr, "faild to create path for %s\n", piece_names[i]);
+            return false;
+        }
+
+        pieces->pieces[i] = IMG_LoadTexture(renderer, path);
+        if (pieces->pieces[i] == NULL)
+        {
+            fprintf(stderr, "could not load sprite (%s): %s\n", piece_names[i], SDL_GetError());
+            return false;
+        }
+
+        fprintf(stdout, "piece loaded: %s\n", piece_names[i]);
+    }
+
+    fprintf(stdout, "successfully loaded all chess pieces!\n");
+    return true;
 }
 
 /* start a new SDL3 (with VSync) application, with window(window_title, window_width, window_height) */
@@ -74,6 +124,11 @@ bool app_init(AppState *state, char *window_title, int window_width, int window_
     }
 
     state->is_running = true;
+
+    if (!load_pieces(&pg, state->app_renderer))
+    {
+        fprintf(stderr, "Could NOT load pieces!\n");
+    }
 
     return true;
 }
@@ -120,6 +175,21 @@ void app_loop(AppState *state, const double target_fps)
     }
 }
 
+static bool piece_textures_housekeeping()
+{
+    for (size_t i = 0; i < PIECE_TYPE_COUNT; ++i)
+    {
+        if (pg.pieces[i] != NULL)
+            SDL_DestroyTexture(pg.pieces[i]);
+        else
+            fprintf(stderr, "wtf?????\n");
+    }
+
+    fprintf(stdout, "piece textures terminated!\n");
+
+    return true;
+}
+
 /* clean-up before exiting the app */
 bool app_housekeeping(AppState *state)
 {
@@ -129,16 +199,21 @@ bool app_housekeeping(AppState *state)
         return false;
     }
 
+    if (!piece_textures_housekeeping())
+    {
+        fprintf(stderr, "piece_textures_housekeeping() failed!\n");
+    }
+
     if (state->app_renderer)
     {
         SDL_DestroyRenderer(state->app_renderer);
-        fprintf(stderr, "state->app_renderer has been TERMINATED!\n");
+        fprintf(stdout, "state->app_renderer has been TERMINATED!\n");
     }
 
     if (state->app_window)
     {
         SDL_DestroyWindow(state->app_window);
-        fprintf(stderr, "state->app_window has been TERMINATED!\n");
+        fprintf(stdout, "state->app_window has been TERMINATED!\n");
     }
 
     SDL_Quit();
